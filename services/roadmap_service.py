@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 from models.analysis import Analysis
 from models.roadmap import RoadMap
 from utils.llm import llm
@@ -6,7 +5,7 @@ from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
 
 
-def generate_road_map(db:Session):
+def generate_road_map(db):
     
     template="""You are a career coach and technical mentor.
 

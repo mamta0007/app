@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 from models.interview import Interview
 from models.resume import Resume
 from models.jd import Jd
@@ -7,7 +6,7 @@ from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
 
 
-def generat_question(type:str,db:Session):
+def generat_question(type:str,db):
    
     template="""
 You are an expert technical interviewer.
@@ -55,7 +54,7 @@ Return ONLY the question as plain text.
 
 
 
-def question_answer(answer:str, db:Session):
+def question_answer(answer, db):
     interview=db.query(Interview).order_by(Interview.id.desc()).first()
     if not interview :
         return "error"

@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 from models.analysis import Analysis
 from models.resume import Resume
 from models.jd import Jd
@@ -8,7 +7,7 @@ from langchain_core.prompts import PromptTemplate
 
 
 
-def run_analysis(db:Session):
+def run_analysis(db):
     
     
     resume = db.query(Resume).order_by(Resume.id.desc()).first()
@@ -79,7 +78,7 @@ def run_analysis(db:Session):
 
     prompt=PromptTemplate(template=template,input_variables=["resume_text","jd_text"])
 
-    formatted_prompt=prompt.format(resume_text=resume.file,jd_text=jd.text)
+    formatted_prompt=prompt.format(resume_text=resume.content,jd_text=jd.content)
     result=llm.invoke(formatted_prompt)
     result=result.content
     

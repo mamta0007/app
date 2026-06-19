@@ -5,4 +5,5 @@ from db.database import Base
 class Jd(Base):
     __tablename__="jd"
     id=Column(Integer,primary_key=True,index=True)
-    text=Column(Text)
+    file_name=Column(String)
+    content=Column(Text)

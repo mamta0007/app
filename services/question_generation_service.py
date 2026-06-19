@@ -1,11 +1,10 @@
-from sqlalchemy.orm import Session
 from models.resume import Resume
 from models.jd import Jd
 from utils.llm import llm
 from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
 
-def run_interview_question(db:Session):
+def run_interview_question(db):
    
     template =  """
 You are an expert technical interviewer.

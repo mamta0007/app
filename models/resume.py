@@ -5,4 +5,5 @@ from db.database import Base
 class Resume(Base):
     __tablename__="resume"
     id=Column(Integer,primary_key=True,index=True)
-    file=Column(Text)
+    file_name=Column(String)
+    content=Column(Text)

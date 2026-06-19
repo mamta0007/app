@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 from models.analysis import Analysis
 from models.resume import Resume
 from models.jd import Jd
@@ -9,7 +8,7 @@ from utils.json_parser import parse_llm_json
 
 import json
 
-def run_report(db:Session):
+def run_report(db):
     resume = db.query(Resume).order_by(Resume.id.desc()).first()
     jd = db.query(Jd).order_by(Jd.id.desc()).first()
     analysis = db.query(Analysis).order_by(Analysis.id.desc()).first()

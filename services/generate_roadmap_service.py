@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 from models.analysis import Analysis
 from models.roadmap import RoadMap
 from utils.llm import llm
@@ -9,7 +8,7 @@ from langchain_core.prompts import PromptTemplate
 
 
 
-def generate_road_map(db:Session):
+def generate_road_map(db):
     
     
     
