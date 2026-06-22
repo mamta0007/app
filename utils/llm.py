@@ -1,6 +1,6 @@
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
-load_dotenv(dotenv_path="core/.env")
+load_dotenv()
 import os
 
 llm=ChatGroq(model="llama-3.3-70b-versatile",

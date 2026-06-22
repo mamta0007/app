@@ -6,7 +6,7 @@ from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
 
 
-def generat_question(type:str,db):
+def generat_question(type,db):
    
     template="""
 You are an expert technical interviewer.
@@ -41,15 +41,17 @@ Return ONLY the question as plain text.
     jd = db.query(Jd).order_by(Jd.id.desc()).first()
     
     prompt=PromptTemplate(template=template,input_variables=["type","resume_text","jd_text"])
-    formatted_prompt=prompt.format(type=type,resume_text=resume.file,jd_text=jd.text)
+    formatted_prompt=prompt.format(type=type,resume_text=resume.content,jd_text=jd.content)
     result=llm.invoke(formatted_prompt)
     response=result.content
     
     interview=Interview(type=type,question=response)
     db.add(interview) 
     db.commit()
-    return {"response":response}
-    
+    return {
+    "type": type,
+    "question": response   # 🔥 NOT "response"
+}
     
 
 
@@ -72,7 +74,7 @@ Evaluate based on:
 Return JSON:
 
 {{
-  "score": "1-10",
+  "score": "0-10",
   "feedback": "short improvement suggestion"
 }}"""
     prompt=PromptTemplate(template=template,input_variables=["question","answer"])

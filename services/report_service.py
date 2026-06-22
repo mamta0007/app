@@ -1,7 +1,7 @@
 from models.analysis import Analysis
 from models.resume import Resume
 from models.jd import Jd
-from models.interview import Interview
+from models.question import Question
 from models.roadmap import RoadMap
 from utils.llm import llm
 from utils.json_parser import parse_llm_json
@@ -13,7 +13,7 @@ def run_report(db):
     jd = db.query(Jd).order_by(Jd.id.desc()).first()
     analysis = db.query(Analysis).order_by(Analysis.id.desc()).first()
     roadmap = db.query(RoadMap).order_by(RoadMap.id.desc()).first()
-    questions = db.query(Interview).all()
+    questions = db.query(Question).all()
         
         
     template = """
@@ -37,8 +37,8 @@ Give JSON:
 }}
 """
     prompt = template.format(
-    resume_text=resume.file,
-        jd_text=jd.text
+    resume_text=resume.content,
+        jd_text=jd.content
     )
     
     result = llm.invoke(prompt)
@@ -52,7 +52,7 @@ Give JSON:
         "match_score": analysis.match_score,
         "skill_gap": analysis.missing_skills,
         "learning_plan":roadmap.learning_plan,
-        "interview_questions": [q.question for q in questions],
+        "questions": [q.generated_question for q in questions],
         "tips": response["tips"]
     }
     

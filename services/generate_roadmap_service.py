@@ -42,7 +42,8 @@ OUTPUT FORMAT:
 """
 
     analysis = db.query(Analysis).order_by(Analysis.id.desc()).first()
-    missing_skills = analysis.missing_skills
+    missing_skills = ", ".join(analysis.missing_skills)
+    
     
     prompt=PromptTemplate(template=template,input_variables=["missing_skills"])
     formatted_prompt=prompt.format(missing_skills=missing_skills)
