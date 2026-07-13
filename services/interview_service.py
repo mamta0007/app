@@ -4,9 +4,10 @@ from models.jd import Jd
 from utils.llm import llm
 from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
+from schemas.interview_schema import InterviewBase, AnswerBase
+from fastapi import HTTPException
 
-
-def generat_question(type,db):
+def generat_question(current_user, type, db):
    
     template="""
 You are an expert technical interviewer.
@@ -37,27 +38,52 @@ Output:
 Return ONLY the question as plain text.
 """
 
-    resume = db.query(Resume).order_by(Resume.id.desc()).first()
-    jd = db.query(Jd).order_by(Jd.id.desc()).first()
+    resume = (
+    db.query(Resume)
+    .filter(Resume.user_id == current_user.id)
+    .order_by(Resume.id.desc())
+    .first()
+)
+
+    jd = (
+    db.query(Jd)
+    .filter(Jd.user_id == current_user.id)
+    .order_by(Jd.id.desc())
+    .first()
+)
+
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    if not jd:
+        raise HTTPException(status_code=404, detail="Job description not found")
     
     prompt=PromptTemplate(template=template,input_variables=["type","resume_text","jd_text"])
-    formatted_prompt=prompt.format(type=type,resume_text=resume.content,jd_text=jd.content)
+    formatted_prompt=prompt.format(type=type.type,resume_text=resume.content,jd_text=jd.content)
     result=llm.invoke(formatted_prompt)
     response=result.content
     
-    interview=Interview(type=type,question=response)
+    interview = Interview(
+    user_id=current_user.id,
+    type=type.type,
+    question=response
+)
     db.add(interview) 
     db.commit()
     return {
-    "type": type,
+    "type": type.type,
     "question": response   # 🔥 NOT "response"
 }
     
 
 
 
-def question_answer(answer, db):
-    interview=db.query(Interview).order_by(Interview.id.desc()).first()
+def question_answer(current_user, answer, db):
+    interview = (
+    db.query(Interview)
+    .filter(Interview.user_id == current_user.id)
+    .order_by(Interview.id.desc())
+    .first()
+)
     if not interview :
         return "error"
     
@@ -79,15 +105,22 @@ Return JSON:
 }}"""
     prompt=PromptTemplate(template=template,input_variables=["question","answer"])
    
-    formatted_prompt=prompt.format(question=interview.question,answer=answer)
+    formatted_prompt=prompt.format(question=interview.question,answer=answer.answer)
     result=llm.invoke(formatted_prompt)
     response=result.content
     
     response=parse_llm_json(response)
+    
+    if not isinstance(response, dict) or "score" not in response or "feedback" not in response:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI response could not be understood. Please try submitting your answer again."
+        )
+    
     score=response["score"]
     feedback=response["feedback"]
     
-    interview.answer=answer
+    interview.answer=answer.answer
     interview.score=score
     interview.feedback=feedback
     db.commit()
@@ -118,7 +151,11 @@ Return only question.
     result2=llm.invoke(formatted_prompt2)
     response2=result2.content
     if response2:
-        new_interview=Interview(question=response2,type=interview.type)
+        new_interview = Interview(
+    user_id=current_user.id,
+    question=response2,
+    type=interview.type
+)
         db.add(new_interview)
         db.commit()
         

@@ -1,4 +1,4 @@
-from pydantic import BaseModel,ConfigDict
+from pydantic import BaseModel, ConfigDict
 from typing import List
 
 class AnalysisResponse(BaseModel):
@@ -9,5 +9,5 @@ class AnalysisResponse(BaseModel):
     strengths: List[str]
     weaknesses: List[str]
     match_score: float
-    
-    model_config=ConfigDict(from_attributes=True)
+
+    model_config = ConfigDict(from_attributes=True)

@@ -1,7 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from typing import List
 
-
 class QuestionBank(BaseModel):
     technical_questions: List[str]
     scenario_questions: List[str]

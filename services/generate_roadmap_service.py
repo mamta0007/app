@@ -8,7 +8,7 @@ from langchain_core.prompts import PromptTemplate
 
 
 
-def generate_road_map(db):
+def generate_road_map(current_user, db):
     
     
     
@@ -41,7 +41,12 @@ OUTPUT FORMAT:
 }}
 """
 
-    analysis = db.query(Analysis).order_by(Analysis.id.desc()).first()
+    analysis = (
+    db.query(Analysis)
+    .filter(Analysis.user_id == current_user.id)
+    .order_by(Analysis.id.desc())
+    .first()
+) 
     missing_skills = ", ".join(analysis.missing_skills)
     
     
@@ -50,7 +55,7 @@ OUTPUT FORMAT:
     result=llm.invoke(formatted_prompt)
     response=parse_llm_json(result.content)
     
-    roadmap=RoadMap(missing_skills=missing_skills,learning_plan=response["learning_plan"])
+    roadmap=RoadMap(missing_skills=missing_skills,learning_plan=response["learning_plan"], user_id=current_user.id)
     db.add(roadmap)
     db.commit()
     return response
