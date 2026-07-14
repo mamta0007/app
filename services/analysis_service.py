@@ -11,16 +11,16 @@ def run_analysis(current_user,db):
     resume = (
     db.query(Resume)
     .filter(Resume.user_id == current_user.id)
-    .order_by(Resume.created_at.desc())
+    .order_by(Resume.id.desc())
     .first()
 )
 
     jd = (
-        db.query(Jd)
-        .filter(Jd.user_id == current_user.id)
-        .order_by(Jd.created_at.desc())
-        .first()
-    )
+    db.query(Jd)
+    .filter(Jd.user_id == current_user.id)
+    .order_by(Jd.id.desc())
+    .first()
+)
     if not resume:
         return {"message": "Resume not found"}
 
@@ -29,77 +29,9 @@ def run_analysis(current_user,db):
 
     
        
-    template = """
-You are an ATS system and technical recruiter.
+    template = """You are an ATS and Technical Recruiter.
 
-Analyze the resume text and job description text.
-
-STRICT RULES:
-- Use ONLY information explicitly present in the given text.
-- Do NOT hallucinate skills.
-- Do NOT assume that a skill exists because it is related to another skill.
-- Extract ONLY technical/hard skills.
-- Return ONLY valid JSON.
-- Do NOT add markdown or explanations.
-
-SKILL NORMALIZATION RULES:
-- Convert all skills to lowercase.
-- Remove duplicate skills.
-- Normalize common naming variations.
-- Consider the following as the same skill:
-    python3 = python
-    python 3.x = python
-    postgres = postgresql
-    postgresql database = postgresql
-    node.js = nodejs
-    node js = nodejs
-    react.js = react
-    reactjs = react
-    javascript = js
-    typescript = ts
-
-IMPORTANT MATCHING RULES:
-- Before marking a skill as missing, check whether the resume contains the same technology with a different naming format.
-- Do NOT mark a skill missing if it is only a naming difference.
-- Do NOT consider frameworks, libraries, or tools as equivalent unless they are clearly the same technology.
-- Do NOT infer parent-child relationships.
-
-Examples:
-Correct:
-Resume: "PostgreSQL"
-JD: "Postgres"
-Result:
-matching_skills: ["postgresql"]
-
-Incorrect:
-Resume: "FastAPI"
-JD: "Backend API Development"
-Do NOT mark as matching unless "Backend API Development" is explicitly present.
-
-TASKS:
-
-1. candidate_skills:
-Extract only technical skills from the resume.
-
-2. required_skills:
-Extract only technical skills from the job description.
-
-3. matching_skills:
-Return only skills that exist in both candidate_skills and required_skills after normalization.
-
-4. missing_skills:
-Return only required skills that are not present in candidate_skills after normalization.
-
-5. strengths:
-Generate short recruiter insights only from matching_skills.
-Do not add any extra assumptions.
-
-6. weaknesses:
-Generate short gap statements only from missing_skills.
-Do not mention skills that are not in missing_skills.
-
-
-INPUT:
+Your task is to compare the Resume and Job Description and return a deterministic result.
 
 Resume:
 {resume_text}
@@ -107,31 +39,74 @@ Resume:
 Job Description:
 {jd_text}
 
+Rules:
+- Use ONLY information explicitly present in the Resume and Job Description.
+- Never infer, assume, or hallucinate any skill, experience, education, certification, or responsibility.
+- Extract ONLY technical/hard skills.
+- Convert all skills to lowercase.
+- Normalize equivalent names (e.g. react=react.js, nodejs=node.js, postgres=postgresql, rest api=restful api).
+- Do NOT match different technologies (e.g. react≠next.js, sql≠ms sql server, docker≠kubernetes).
+- Remove duplicates.
+- Sort every skill list alphabetically before returning.
+- Always calculate matching_skills as the intersection of candidate_skills and required_skills.
+- Always calculate missing_skills as required_skills − matching_skills.
+- strengths must equal matching_skills.
+- weaknesses must equal missing_skills.
+- Base all scores only on explicit evidence in the resume.
+- If information is missing, use empty arrays, false, 0, or an empty string. Never guess.
+- Return the same output for identical inputs.
+- Return ONLY valid JSON.
+- Do NOT include markdown, code fences, explanations, reasoning, or <think> tags.
 
-OUTPUT FORMAT:
-
+JSON Schema:
 {{
-    "candidate_skills": [],
-    "required_skills": [],
-    "matching_skills": [],
-    "missing_skills": [],
-    "strengths": [],
-    "weaknesses": []
+  "overall_match_percentage": 0,
+  "match_level": "",
+  "summary": "",
+  "category_scores": {{
+    "technical_skills": 0,
+    "work_experience": 0,
+    "education": 0,
+    "responsibilities": 0,
+    "preferred_skills": 0,
+    "ats_keywords": 0
+  }},
+  "candidate_skills": [],
+  "required_skills": [],
+  "matching_skills": [],
+  "missing_skills": [],
+  "strengths": [],
+  "weaknesses": [],
+  "missing_requirements": [],
+  "matched_experience": [],
+  "education_analysis": {{
+    "required_degree_met": false,
+    "certification_match": ""
+  }},
+  "recommendation": {{
+    "should_shortlist": false,
+    "reason": ""
+  }},
+  "improvement_suggestions": []
 }}
 """
     prompt=PromptTemplate(template=template,input_variables=["resume_text","jd_text"])
 
     formatted_prompt=prompt.format(resume_text=resume.content,jd_text=jd.content)
-    result=llm.invoke(formatted_prompt)
-    result=result.content
+
+    result = llm.invoke(formatted_prompt)
+   
+    result = result.content.strip()
     
-    try:
-        data = parse_llm_json(result)
-    except Exception:
+
+    if not result:
         return {
-        "error": "LLM returned invalid JSON",
-        "raw_response": result
+        "error": "LLM returned empty response"
     }
+    
+   
+    data = parse_llm_json(result)
+    
     required_skills = data.get("required_skills", [])
     matching_skills = data.get("matching_skills", [])
     missing_skills = data.get("missing_skills", [])
@@ -146,9 +121,6 @@ OUTPUT FORMAT:
 ) if required_skills else 0
     
     data["match_score"]=match_score
-    
-    
-
     
     analysis=Analysis(user_id=current_user.id,matching_skills=matching_skills,missing_skills=missing_skills,required_skills=required_skills,
                       strengths=strengths,weaknesses=weaknesses,candidate_skills=candidate_skills,match_score=match_score)

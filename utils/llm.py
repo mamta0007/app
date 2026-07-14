@@ -4,5 +4,9 @@ load_dotenv()
 import os
 
 llm=ChatGroq(model="llama-3.3-70b-versatile",
-             max_tokens=800,
+             temperature=0,
+       model_kwargs={
+        "top_p": 0.9
+    },
+    max_tokens=800,
              api_key=os.getenv("GROQ_API_KEY"))

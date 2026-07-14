@@ -20,7 +20,7 @@ async def upload_resume(file,db,current_user):
         
         image_b64=base64.b64encode(content).decode("utf-8")
         response=client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model="Qwen/Qwen3.6-27B",
         messages=[
             {"role":"user",
              "content":[
