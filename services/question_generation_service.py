@@ -1,12 +1,12 @@
 from models.resume import Resume
 from models.jd import Jd
 from models.question import Question
-from utils.llm import llm
 from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
+from utils.llm import llm
 
 def run_question(current_user, db):
-   
+ 
     template =  """
 You are an expert technical interviewer.
 

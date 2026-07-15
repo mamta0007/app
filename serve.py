@@ -15,8 +15,7 @@ index.html — no /activate or /reset-password folders required.
 
 USAGE:
     python3 serve.py
-    (then open http://
-    :5500)
+    (then open http://<host>:5500)
 
 To use a different port:
     python3 serve.py 8080
@@ -53,7 +52,7 @@ class SPARequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    base=os.getenv("BASE_URL")
+    base = os.getenv("BASE_URL", "http://localhost")
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
     server = http.server.HTTPServer(('', port), SPARequestHandler)
     print(f"Serving Redline frontend at {base}:{port}")
@@ -62,4 +61,3 @@ if __name__ == '__main__':
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
-        

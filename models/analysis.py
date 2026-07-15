@@ -1,5 +1,6 @@
-from sqlalchemy import JSON,Integer,String,Column,Float,ForeignKey
+from sqlalchemy import JSON,Integer,String,Column,Float,ForeignKey,DateTime
 from db.database import Base
+from datetime import datetime
 
 
 
@@ -14,3 +15,6 @@ class Analysis(Base):
     strengths=Column(JSON)
     weaknesses=Column(JSON)
     match_score=Column(Float)
+    jd_id = Column(Integer, ForeignKey("jd.id"))
+    resume_id = Column(Integer, ForeignKey("resume.id"))
+    created_at = Column(DateTime,  default=datetime.utcnow)

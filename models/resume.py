@@ -8,4 +8,4 @@ class Resume(Base):
     file_name=Column(String)
     content=Column(Text)
     user_id=Column(Integer,ForeignKey("users.id"),nullable=False,index=True)
-    
+    created_at=Column(DateTime , default=datetime.utcnow)

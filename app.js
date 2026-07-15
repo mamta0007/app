@@ -13,7 +13,7 @@
    5. View switching / Routing — show/hide the right screen.
    6. Auth         — login, register, forgot/reset password, logout.
    7. Upload       — resume + job description file upload.
-   8. Analysis / Roadmap / Interview / Question bank / Report
+   8. Analysis / Roadmap / Interview / Question bank / Report / History
                     — one section per app feature.
    9. Boot         — the very last thing that runs, kicks everything off.
 
@@ -49,6 +49,8 @@ const state = {
     all: null,
   },
   report: null,
+  reportFileName: null, // real backend filename, read from Content-Disposition
+  history: null,        // last /history response
 };
 
 /* ---------------------------------------------------------
@@ -230,6 +232,7 @@ const Api = {
 
   getReport: () => apiFetch('/report', { method: 'POST' }),
   getDashboard: () => apiFetch('/dashboard', { method: 'GET' }),
+  getHistory: () => apiFetch('/history', { method: 'GET' }),
 };
 
 /* ---------------------------------------------------------
@@ -359,12 +362,7 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
   }
 });
 
-// Runs when the "Log out" button is clicked. This was previously
-// MISSING — Api.logout() existed but nothing ever called it, so
-// clicking logout (if a button even existed) did nothing.
-//
-// NOTE: if your logout button's id in the HTML is not "btn-logout",
-// update the id below to match.
+// Runs when the "Log out" button is clicked.
 const logoutBtn = document.getElementById('btn-logout');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', async () => {
@@ -384,14 +382,13 @@ if (logoutBtn) {
       state.interview = { type: null, currentQuestion: null, history: [] };
       state.questions = { all: null };
       state.report = null;
+      state.history = null;
 
       showAuthView();
       toast('Signed out.');
     }
   });
 } else {
-  // Helps you catch a mismatched id quickly instead of silently
-  // doing nothing.
   console.warn('Logout button (#btn-logout) not found in the page — check the id in your HTML.');
 }
 
@@ -593,14 +590,13 @@ document.getElementById('btn-run-analysis').addEventListener('click', async () =
 function renderTagCloud(container, items, variant) {
   container.innerHTML = '';
   if (!items || !items.length) {
-    container.innerHTML = `<span style="color:var(--paper-dim);font-size:0.85rem;">None recorded.</span>`;
+    container.innerHTML = `<span style="color:var(--text-dim);font-size:0.85rem;">None recorded.</span>`;
     return;
   }
-  items.forEach((skill, i) => {
+  items.forEach((skill) => {
     const tag = document.createElement('span');
     tag.className = `tag tag--${variant}`;
     tag.textContent = skill;
-    tag.style.setProperty('--tilt', `${(i % 3 - 1) * 1.2}deg`);
     container.appendChild(tag);
   });
 }
@@ -608,7 +604,7 @@ function renderTagCloud(container, items, variant) {
 function renderList(container, items) {
   container.innerHTML = '';
   if (!items || !items.length) {
-    container.innerHTML = '<li style="color:var(--paper-dim);">Nothing recorded.</li>';
+    container.innerHTML = '<li style="color:var(--text-dim);">Nothing recorded.</li>';
     return;
   }
   items.forEach((item) => {
@@ -662,7 +658,7 @@ function renderTimeline(learningPlan) {
 
   const entries = learningPlan && typeof learningPlan === 'object' ? Object.entries(learningPlan) : [];
   if (!entries.length) {
-    container.innerHTML = '<p style="color:var(--paper-dim);">No plan returned. Run an analysis first so there are missing skills to plan around.</p>';
+    container.innerHTML = '<p style="color:var(--text-dim);">No plan returned. Run an analysis first so there are missing skills to plan around.</p>';
     return;
   }
 
@@ -670,11 +666,16 @@ function renderTimeline(learningPlan) {
     const item = document.createElement('div');
     item.className = 'timeline-item';
     const label = weekKey.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-    item.innerHTML = `
-      <div class="timeline-item__week">${label}</div>
-      <div class="timeline-item__body">
-        <p>${description}</p>
-      </div>`;
+    const week = document.createElement('div');
+    week.className = 'timeline-item__week';
+    week.textContent = label;
+    const body = document.createElement('div');
+    body.className = 'timeline-item__body';
+    const p = document.createElement('p');
+    p.textContent = description;
+    body.appendChild(p);
+    item.appendChild(week);
+    item.appendChild(body);
     container.appendChild(item);
   });
 }
@@ -782,16 +783,28 @@ function renderInterviewHistory() {
   const list = document.getElementById('interview-history-list');
   list.innerHTML = '';
   if (!state.interview.history.length) {
-    list.innerHTML = '<p style="color:var(--paper-dim);font-size:0.88rem;">No answers submitted yet.</p>';
+    list.innerHTML = '<p style="color:var(--text-dim);font-size:0.88rem;">No answers submitted yet.</p>';
     return;
   }
   state.interview.history.forEach((item) => {
     const el = document.createElement('div');
     el.className = 'qa-item';
-    el.innerHTML = `
-      <p class="qa-item__q">${item.question}</p>
-      <p class="qa-item__a">${item.answer}</p>
-      <p class="qa-item__score">${item.score != null ? `Score: ${item.score}/10 — ${item.feedback || ''}` : ''}</p>`;
+
+    const q = document.createElement('p');
+    q.className = 'qa-item__q';
+    q.textContent = item.question;
+
+    const a = document.createElement('p');
+    a.className = 'qa-item__a';
+    a.textContent = item.answer;
+
+    const s = document.createElement('p');
+    s.className = 'qa-item__score';
+    s.textContent = item.score != null ? `Score: ${item.score}/10 — ${item.feedback || ''}` : '';
+
+    el.appendChild(q);
+    el.appendChild(a);
+    el.appendChild(s);
     list.appendChild(el);
   });
 }
@@ -817,7 +830,7 @@ function renderQuestionBank(data) {
       ul.appendChild(li);
     });
     if (!items || !items.length) {
-      ul.innerHTML = '<li style="color:var(--paper-dim);">None generated.</li>';
+      ul.innerHTML = '<li style="color:var(--text-dim);">None generated.</li>';
     }
   };
 
@@ -856,94 +869,329 @@ document.getElementById('btn-generate-questions').addEventListener('click', asyn
    download it as a .json file to keep.
    --------------------------------------------------------- */
 
+function el(tag, opts = {}) {
+  const node = document.createElement(tag);
+  if (opts.className) node.className = opts.className;
+  if (opts.text != null) node.textContent = opts.text;
+  if (opts.html != null) node.innerHTML = opts.html;
+  return node;
+}
+
+function reportSection(title, bodyNode) {
+  const section = el('div', { className: 'report-section' });
+  section.appendChild(el('h3', { text: title }));
+  section.appendChild(bodyNode);
+  return section;
+}
+
+// apiFetch() only returns the parsed JSON body — it discards response
+// headers. But the backend's actual filename (e.g. "report_11_2.json")
+// only exists in the Content-Disposition header of the /report response,
+// not in the JSON body itself (report_data has no "file_name" key). So
+// this parses that header out, same way a browser would for a real
+// download prompt.
+function parseFilenameFromContentDisposition(header) {
+  if (!header) return null;
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// Fetches the report the same way downloadReportById() fetches a file —
+// manually, with auth + 401-refresh handling — instead of through
+// apiFetch, specifically so we can read the Content-Disposition header
+// for the real backend filename before apiFetch's JSON-only path
+// throws that information away.
+async function fetchReportRaw() {
+  const headers = new Headers();
+  if (Tokens.access) headers.set('Authorization', `Bearer ${Tokens.access}`);
+
+  let response = await fetch(`${API_BASE}/report`, { method: 'POST', headers });
+
+  if (response.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (!refreshed) {
+      Tokens.clear();
+      showAuthView();
+      throw new ApiError('Session expired. Please sign in again.', 401);
+    }
+    headers.set('Authorization', `Bearer ${Tokens.access}`);
+    response = await fetch(`${API_BASE}/report`, { method: 'POST', headers });
+  }
+
+  if (!response.ok) {
+    let detail = `Request failed (${response.status})`;
+    try {
+      const body = await response.json();
+      if (body.detail) detail = body.detail;
+    } catch (_) { /* no json body */ }
+    throw new ApiError(detail, response.status);
+  }
+
+  const filename = parseFilenameFromContentDisposition(response.headers.get('Content-Disposition'));
+  const data = await response.json();
+  return { data, filename };
+}
+
 async function loadReport() {
   try {
-    const report = await Api.getReport();
+    const { data: report, filename } = await fetchReportRaw();
     state.report = report;
+    state.reportFileName = filename; // real backend filename, e.g. report_11_2.json
     document.getElementById('report-empty').hidden = true;
-    document.getElementById('btn-download-report').hidden = false;
+    const downloadBtn = document.getElementById('btn-download-report');
+    downloadBtn.hidden = false;
+    downloadBtn.textContent = filename ? `Download report (${filename})` : 'Download report (.json)';
     const body = document.getElementById('report-body');
     body.hidden = false;
+    body.innerHTML = '';
 
-    const weekRows = report.learning_plan
-      ? Object.entries(report.learning_plan).map(([week, desc]) => `<p><strong>${week.replace('_', ' ')}:</strong> ${desc}</p>`).join('')
-      : '<p>No learning plan yet.</p>';
+    body.appendChild(reportSection('Resume summary', el('p', { text: report.resume_summary || 'Not available.' })));
+    body.appendChild(reportSection('Job description summary', el('p', { text: report.jd_summary || 'Not available.' })));
+    body.appendChild(reportSection('Match score', el('p', { text: `${Math.round(report.match_score || 0)}% match against the job description on file.` })));
+    body.appendChild(reportSection('Matching skills', el('p', { text: (report.matching_skills || []).join(', ') || 'None recorded.' })));
+    body.appendChild(reportSection('Skill gap', el('p', { text: (report.skill_gap || []).join(', ') || 'None recorded.' })));
 
-    // report.questions is a list of question-bank batches — each one
-    // an object like { technical_questions: [...], scenario_questions: [...],
-    // HR_questions: [...], project_based_questions: [...] }.
-    const questionRows = (report.questions || []).map((batch, i) => {
-      if (!batch || typeof batch !== 'object') return '';
-      const section = (label, items) => (items && items.length)
-        ? `<p><strong>${label}:</strong></p><ul>${items.map((q) => `<li>${q}</li>`).join('')}</ul>`
-        : '';
-      return `
-        <div style="margin-bottom:1.2rem;">
-          ${section('Technical', batch.technical_questions)}
-          ${section('Scenario', batch.scenario_questions)}
-          ${section('HR', batch.HR_questions)}
-          ${section('Project-based', batch.project_based_questions)}
-        </div>`;
-    }).join('');
+    // Learning plan
+    const planWrap = el('div');
+    const planEntries = report.learning_plan ? Object.entries(report.learning_plan) : [];
+    if (planEntries.length) {
+      planEntries.forEach(([week, desc]) => {
+        const p = el('p');
+        const strong = el('strong', { text: `${week.replace('_', ' ')}: ` });
+        p.appendChild(strong);
+        p.appendChild(document.createTextNode(desc));
+        planWrap.appendChild(p);
+      });
+    } else {
+      planWrap.appendChild(el('p', { text: 'No learning plan yet.' }));
+    }
+    body.appendChild(reportSection('Learning plan', planWrap));
 
-    body.innerHTML = `
-      <div class="report-section">
-        <h3>Resume summary</h3>
-        <p>${report.resume_summary || 'Not available.'}</p>
-      </div>
-      <div class="report-section">
-        <h3>Job description summary</h3>
-        <p>${report.jd_summary || 'Not available.'}</p>
-      </div>
-      <div class="report-section">
-        <h3>Match score</h3>
-        <p>${Math.round(report.match_score || 0)}% match against the job description on file.</p>
-      </div>
-      <div class="report-section">
-        <h3>Skill gap</h3>
-        <p>${(report.skill_gap || []).join(', ') || 'None recorded.'}</p>
-      </div>
-      <div class="report-section">
-        <h3>Learning plan</h3>
-        ${weekRows}
-      </div>
-      <div class="report-section">
-        <h3>Practice questions</h3>
-        ${questionRows || '<p>None generated.</p>'}
-      </div>
-      <div class="report-section">
-        <h3>Prep tips</h3>
-        <p>${report.tips || 'No tips yet.'}</p>
-      </div>`;
+    body.appendChild(reportSection('Prep tips', el('p', { text: report.tips || 'No tips yet.' })));
   } catch (err) {
-    // Previously this was silent, so a failed request just left the
-    // empty state showing with no indication anything went wrong.
-    // Now we surface the real error so it's obvious what happened.
     toast(err.message || 'Could not load report.', true);
     console.error('loadReport failed:', err);
+    showReportEmptyState(err);
+  }
+}
+
+// The backend 404s at different points depending on what's missing
+// (no analysis yet, no roadmap yet, etc — see run_report()). Rather
+// than leaving the generic "No report yet" copy up, read the error
+// message and point the person at the specific step they skipped.
+function showReportEmptyState(err) {
+  document.getElementById('report-body').hidden = true;
+  document.getElementById('btn-download-report').hidden = true;
+  document.getElementById('report-empty').hidden = false;
+
+  const textEl = document.getElementById('report-empty-text');
+  const ctaEl = document.getElementById('report-empty-cta');
+  const msg = (err && err.message ? err.message : '').toLowerCase();
+
+  if (err && err.status === 404 && msg.includes('roadmap')) {
+    textEl.textContent = "This analysis doesn't have a roadmap yet — generate one, then come back for the report.";
+    ctaEl.dataset.route = 'roadmap';
+    ctaEl.textContent = 'Go to roadmap';
+    ctaEl.hidden = false;
+  } else if (err && err.status === 404 && msg.includes('analysis')) {
+    textEl.textContent = 'No analysis yet. Upload a resume and job description, then run the analysis.';
+    ctaEl.dataset.route = 'upload';
+    ctaEl.textContent = 'Go to upload';
+    ctaEl.hidden = false;
+  } else if (err && err.status === 404 && (msg.includes('resume') || msg.includes('jd'))) {
+    textEl.textContent = "The resume or job description behind this analysis is missing — try uploading again.";
+    ctaEl.dataset.route = 'upload';
+    ctaEl.textContent = 'Go to upload';
+    ctaEl.hidden = false;
+  } else {
+    textEl.textContent = (err && err.message) || 'Could not load the report. Try again in a moment.';
+    ctaEl.hidden = true;
   }
 }
 
 // Turns the report we already have in memory into a downloadable
-// .json file — no extra request to the backend needed. This is a
-// common browser trick: wrap the data in a Blob, make a temporary
-// invisible link pointing at it, "click" that link with code, then
-// clean up.
+// .json file — no extra request to the backend needed.
 document.getElementById('btn-download-report').addEventListener('click', () => {
   if (!state.report) return;
   const blob = new Blob([JSON.stringify(state.report, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'redline-report.json';
+  a.download = state.reportFileName || 'redline-report.json';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 });
 
+/* ---------------------------------------------------------
+   History
+
+   Fetches the user's past analyses from GET /history. Each entry
+   has this exact shape (see the backend's user_history()):
+     { analysis_id, resume_file, jd_file, report_id, report_name,
+       created_at }
+   One card per analysis, showing which resume was checked against
+   which job description, whether a report was generated for it,
+   and when it happened.
+   --------------------------------------------------------- */
+
+async function loadHistory() {
+  const emptyEl = document.getElementById('history-empty');
+  const bodyEl = document.getElementById('history-body');
+  try {
+    const history = await Api.getHistory();
+    state.history = history;
+    const entries = Array.isArray(history) ? history : (history && history.items) || [];
+
+    if (!entries.length) {
+      if (emptyEl) {
+        emptyEl.hidden = false;
+        emptyEl.querySelector('p').textContent = "No history yet. Once you run an analysis, generate a roadmap, or complete an interview, it'll show up here.";
+      }
+      if (bodyEl) { bodyEl.hidden = true; bodyEl.innerHTML = ''; }
+      return;
+    }
+
+    if (emptyEl) emptyEl.hidden = true;
+    if (bodyEl) {
+      bodyEl.hidden = false;
+      bodyEl.innerHTML = '';
+      entries.forEach((entry) => bodyEl.appendChild(renderHistoryCard(entry)));
+    }
+  } catch (err) {
+    toast(err.message || 'Could not load history.', true);
+    console.error('loadHistory failed:', err);
+    // A 401 here means the session died silently (see apiFetch) — don't
+    // let it look like an empty history, since that hides a real problem
+    // and sends the person hunting for data that was never actually queried.
+    if (bodyEl) { bodyEl.hidden = true; bodyEl.innerHTML = ''; }
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.querySelector('p').textContent = err && err.status === 401
+        ? 'Your session expired before this could load. Sign in again to see your history.'
+        : (err.message || 'Could not load your history. Try again in a moment.');
+    }
+  }
+}
+
+// Turns a created_at timestamp (ISO string from the backend) into
+// something readable like "14 Jul 2026, 3:45 PM". Falls back to the
+// raw value if it can't be parsed, so a format change never breaks
+// the page.
+function formatHistoryDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString(undefined, {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+// Downloads one specific past report (GET /download-report/{analysis_id}?report_id=...).
+// Not routed through apiFetch because apiFetch always tries to parse
+// the response as JSON — here we need the raw file bytes as a Blob so
+// the browser can save it, same trick as btn-download-report but
+// fetched fresh from the server instead of read from `state.report`.
+async function downloadReportById(analysisId, reportId, filename) {
+  const url = `${API_BASE}/download-report/${analysisId}?report_id=${encodeURIComponent(reportId)}`;
+  try {
+    const headers = new Headers();
+    if (Tokens.access) headers.set('Authorization', `Bearer ${Tokens.access}`);
+
+    let response = await fetch(url, { headers });
+
+    if (response.status === 401) {
+      const refreshed = await tryRefreshToken();
+      if (!refreshed) {
+        Tokens.clear();
+        showAuthView();
+        throw new ApiError('Session expired. Please sign in again.', 401);
+      }
+      headers.set('Authorization', `Bearer ${Tokens.access}`);
+      response = await fetch(url, { headers });
+    }
+
+    if (!response.ok) {
+      let detail = `Could not download report (${response.status})`;
+      try {
+        const body = await response.json();
+        if (body.detail) detail = body.detail;
+      } catch (_) { /* no json body */ }
+      throw new ApiError(detail, response.status);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || `report_${reportId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    toast(err.message || 'Could not download report.', true);
+  }
+}
+
+// Renders one analysis entry as a card, reusing the same
+// ".report-section" look as the Report page.
+function renderHistoryCard(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return el('div', { className: 'report-section', text: String(entry) });
+  }
+
+  const {
+    id: idField,
+    analysis_id: analysisIdField, // backend has used both key names across versions — support both
+    resume_file: resumeFile,
+    jd_file: jdFile,
+    report_id: reportId,
+    report_name: reportName,
+    created_at: createdAt,
+  } = entry;
+  const analysisId = analysisIdField != null ? analysisIdField : idField;
+
+  const card = el('div', { className: 'report-section' });
+  card.appendChild(el('h3', { text: analysisId != null ? `Analysis #${analysisId}` : 'Analysis' }));
+  if (createdAt) {
+    const dateP = el('p', { text: formatHistoryDate(createdAt) });
+    dateP.style.color = 'var(--text-dim)';
+    dateP.style.fontSize = '0.85rem';
+    card.appendChild(dateP);
+  }
+
+  const resumeP = el('p');
+  resumeP.appendChild(el('strong', { text: 'Resume: ' }));
+  resumeP.appendChild(document.createTextNode(resumeFile || 'Not available'));
+  card.appendChild(resumeP);
+
+  const jdP = el('p');
+  jdP.appendChild(el('strong', { text: 'Job description: ' }));
+  jdP.appendChild(document.createTextNode(jdFile || 'Not available'));
+  card.appendChild(jdP);
+
+  const reportP = el('p');
+  reportP.appendChild(el('strong', { text: 'Report: ' }));
+  reportP.appendChild(document.createTextNode(reportId ? (reportName || `Report #${reportId}`) : 'Not generated yet'));
+  card.appendChild(reportP);
+
+  if (reportId) {
+    const label = reportName ? `Download report (${reportName})` : 'Download report (.json)';
+    const downloadBtn = el('button', { className: 'btn btn--ghost', text: label });
+    downloadBtn.style.marginTop = '0.6rem';
+    downloadBtn.addEventListener('click', () => downloadReportById(analysisId, reportId, reportName || `report_${reportId}.json`));
+    card.appendChild(downloadBtn);
+  }
+
+  return card;
+}
+
 document.querySelector('[data-route="report"]').addEventListener('click', loadReport);
 document.querySelector('[data-route="dashboard"]').addEventListener('click', loadDashboard);
+document.querySelector('[data-route="history"]')?.addEventListener('click', loadHistory);
 
 /* ---------------------------------------------------------
    Dashboard
@@ -962,29 +1210,33 @@ async function loadDashboard() {
       greeting.textContent = `Welcome back, ${data.profile.name || data.profile.email}`;
     }
 
-    const card = (title, content) => `
-      <div class="report-section">
-        <h3>${title}</h3>
-        ${content}
-      </div>`;
+    body.innerHTML = '';
 
-    body.innerHTML = [
-      card('Resume', data.resume
-        ? `<p>Uploaded: <strong>${data.resume.file_name}</strong></p>`
-        : `<p>No resume uploaded yet.</p>`),
-      card('Job description', data.jd
-        ? `<p>Uploaded: <strong>${data.jd.file_name}</strong></p>`
-        : `<p>No job description uploaded yet.</p>`),
-      card('Analysis', data.analysis
-        ? `<p>Match score: <strong>${Math.round(data.analysis.match_score || 0)}%</strong></p>
-           <p>Missing skills: ${(data.analysis.missing_skills || []).join(', ') || 'None'}</p>`
-        : `<p>No analysis run yet.</p>`),
-      card('Roadmap', data.roadmap
-        ? `<p>Skills planned: ${(data.roadmap.missing_skills || '').toString() || 'None'}</p>`
-        : `<p>No roadmap generated yet.</p>`),
-    ].join('');
+    body.appendChild(reportSection('Resume', el('p', {
+      text: data.resume ? `Uploaded: ${data.resume.file_name}` : 'No resume uploaded yet.',
+    })));
+
+    body.appendChild(reportSection('Job description', el('p', {
+      text: data.jd ? `Uploaded: ${data.jd.file_name}` : 'No job description uploaded yet.',
+    })));
+
+    const analysisWrap = el('div');
+    if (data.analysis) {
+      analysisWrap.appendChild(el('p', { text: `Match score: ${Math.round(data.analysis.match_score || 0)}%` }));
+      analysisWrap.appendChild(el('p', { text: `Missing skills: ${(data.analysis.missing_skills || []).join(', ') || 'None'}` }));
+    } else {
+      analysisWrap.appendChild(el('p', { text: 'No analysis run yet.' }));
+    }
+    body.appendChild(reportSection('Analysis', analysisWrap));
+
+    body.appendChild(reportSection('Roadmap', el('p', {
+      text: data.roadmap ? `Skills planned: ${(data.roadmap.missing_skills || '').toString() || 'None'}` : 'No roadmap generated yet.',
+    })));
   } catch (err) {
-    body.innerHTML = `<div class="empty"><p>Could not load your dashboard yet. Try uploading a resume and job description to get started.</p></div>`;
+    body.innerHTML = '';
+    const empty = el('div', { className: 'empty' });
+    empty.appendChild(el('p', { text: 'Could not load your dashboard yet. Try uploading a resume and job description to get started.' }));
+    body.appendChild(empty);
   }
 }
 

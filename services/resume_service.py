@@ -30,7 +30,8 @@ async def upload_resume(file,db,current_user):
                  "image_url":{"url": f"data:{file.content_type};base64,{image_b64}"}}
                  
              ]}
-        ])
+        ],
+        reasoning_effort="none")
         text= response.choices[0].message.content
     
   

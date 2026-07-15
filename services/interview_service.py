@@ -1,12 +1,11 @@
 from models.interview import Interview
 from models.resume import Resume
 from models.jd import Jd
-from utils.llm import llm
 from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
 from schemas.interview_schema import InterviewBase, AnswerBase
 from fastapi import HTTPException
-
+from utils.llm import llm
 def generat_question(current_user, type, db):
    
     template="""

@@ -1,61 +1,52 @@
 from models.analysis import Analysis
 from models.roadmap import RoadMap
-from utils.llm import llm
 from utils.json_parser import parse_llm_json
 from langchain_core.prompts import PromptTemplate
-
-
-
-
+from utils.llm import llm
 
 def generate_road_map(current_user, db):
-    
-    
-    
-    template="""You are a career coach and technical mentor.
 
-Create a structured learning roadmap based ONLY on the given missing skills.
+  template="""You are a technical mentor.
 
-STRICT RULES:
-- Use ONLY the provided missing_skills
-- Do NOT add extra skills
-- Keep plan practical and beginner-friendly
-- Divide learning into weeks
-- Each week should focus on 1 skill/topic
-- Keep output strictly in valid JSON
-- No explanation, no markdown, no text outside JSON
+Create a learning roadmap using ONLY the provided missing_skills.
 
-INPUT:
+Rules:
+1. Use every skill in missing_skills exactly once.
+2. Do NOT add, remove, rename, merge, split, or infer skills.
+3. Assign exactly one skill to each week.
+4. Start from week_1 and continue sequentially (week_2, week_3, ... ) until all skills are assigned.
+5. Do NOT leave any week empty.
+6. If there are N skills, generate exactly N weeks.
+7. Return ONLY valid JSON.
+8. No markdown. No explanation.
+
+Input:
 missing_skills:
 {missing_skills}
 
-OUTPUT FORMAT:
+Output:
 {{
   "missing_skills": [],
-  "learning_plan": {{
-    "week_1": "",
-    "week_2": "",
-    "week_3": "",
-    "week_4": ""
-  }}
+  "learning_plan": {{}}
 }}
 """
 
-    analysis = (
-    db.query(Analysis)
-    .filter(Analysis.user_id == current_user.id)
+
+  analysis = (
+  db.query(Analysis)
+  .filter(Analysis.user_id == current_user.id)
     .order_by(Analysis.id.desc())
     .first()
 ) 
-    missing_skills = ", ".join(analysis.missing_skills)
+  missing_skills = ", ".join(analysis.missing_skills)
     
     
-    prompt=PromptTemplate(template=template,input_variables=["missing_skills"])
-    formatted_prompt=prompt.format(missing_skills=missing_skills)
-    result=llm.invoke(formatted_prompt)
-    response=parse_llm_json(result.content)
+  prompt=PromptTemplate(template=template,input_variables=["missing_skills"])
+  formatted_prompt=prompt.format(missing_skills=missing_skills)
+  result=llm.invoke(formatted_prompt)
+  response=parse_llm_json(result.content)
     
-    roadmap=RoadMap(missing_skills=missing_skills,learning_plan=response["learning_plan"], user_id=current_user.id)
-    db.add(roadmap)
-    db.commit()
-    return response
+  roadmap=RoadMap(missing_skills=missing_skills,learning_plan=response["learning_plan"], user_id=current_user.id,analysis_id=analysis.id,)
+  db.add(roadmap)
+  db.commit()
+  return response

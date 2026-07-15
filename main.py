@@ -16,7 +16,8 @@ from routers.activtation_router import router as activation_router
 from routers.forgot_password_router import router as forgot_password_router
 from routers.reset_password_router import router as reset_password_router
 from routers.dashboard_router import router as get_dashboard_router
-
+from routers.history_router import router as history_router
+from routers.download_router import router as download_router
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -35,13 +36,16 @@ app.include_router(question_generation_router)
 app.include_router(generate_roadmap_router)
 app.include_router(interview_router)
 app.include_router(report_router)
+app.include_router(history_router)
 app.include_router(logout_router)
+app.include_router(download_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  
 )
 
 

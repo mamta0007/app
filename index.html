@@ -123,6 +123,9 @@
       <button class="side__link" data-route="report">
         <span class="side__num">06</span> Report
       </button>
+      <button class="side__link" data-route="history">
+        <span class="side__num">07</span> History
+      </button>
     </nav>
 
     <div class="side__foot">
@@ -362,10 +365,26 @@
       </header>
 
       <div id="report-empty" class="empty">
-        <p>No report yet. Complete an analysis to generate one.</p>
+        <p id="report-empty-text">No report yet. Complete an analysis to generate one.</p>
+        <button class="btn btn--ghost" id="report-empty-cta" data-route="upload" hidden>Go to upload</button>
       </div>
 
       <div id="report-body" class="report-body" hidden></div>
+    </section>
+
+    <!-- ---------- HISTORY ---------- -->
+    <section class="route" id="route-history">
+      <header class="route__head">
+        <p class="route__eyebrow">Step 07</p>
+        <h1 class="route__title">Your history</h1>
+        <p class="route__sub">Everything you've done in Redline so far — analyses, interviews, roadmaps, and reports.</p>
+      </header>
+
+      <div id="history-empty" class="empty">
+        <p>No history yet. Once you run an analysis, generate a roadmap, or complete an interview, it'll show up here.</p>
+      </div>
+
+      <div id="history-body" class="report-body" hidden></div>
     </section>
 
   </main>

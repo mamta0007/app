@@ -46,4 +46,6 @@ htmlcov/
 
 # Data and logs
 *.log
-data.json
+
+# Reports
+reports/
