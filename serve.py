@@ -61,3 +61,5 @@ if __name__ == '__main__':
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
+    finally:
+        server.server_close()
