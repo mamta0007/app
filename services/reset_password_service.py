@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from models.user import User
 from datetime import datetime
-from utils.password import hash_password
+from utils.password import hash_password,verify_password
 
 
 def enter_new_password(db, token, new_password):
@@ -16,6 +16,12 @@ def enter_new_password(db, token, new_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token has expired"
+        )
+    # New password should not be same as old password   
+    if verify_password(new_password, user.password):
+        raise HTTPException(
+            status_code=400,
+            detail="New password cannot be the same as the old password"
         )   
         
     new_hashed_password = hash_password(new_password)

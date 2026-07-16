@@ -30,6 +30,6 @@ def download_report(analysis_id: int,current_user:User=Depends(get_current_user)
 
     return FileResponse(
         path=report.file_path,
-        media_type="application/json",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=report.file_name
     )

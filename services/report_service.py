@@ -7,8 +7,9 @@ from models.roadmap import RoadMap
 from utils.json_parser import parse_llm_json
 from fastapi.responses import   FileResponse
 from models.report import Report
+from docx import Document
 import os
-import json
+
 
 def run_report(current_user, db):
     
@@ -56,7 +57,7 @@ def run_report(current_user, db):
     if existing_report:
         return FileResponse(
             path=existing_report.file_path,
-            media_type="application/json",
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             filename=existing_report.file_name
         )
     
@@ -109,13 +110,58 @@ Give JSON:
     }
     
     os.makedirs("reports", exist_ok=True)
-    filename = f"report_{analysis.id}_{current_user.id}.json"
+    filename = f"report_{analysis.id}_{current_user.id}.docx"
     filepath = os.path.join("reports", filename)
     
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(report_data, f, indent=4, ensure_ascii=False)
+    document=Document()
+    
+    document.add_heading("AI Interview Preparation Assistant (AIPA)", level=1)
+    
+    document.add_heading("Resume Summary", level=2)
+    document.add_paragraph(report_data["resume_summary"])
+    
+    document.add_heading("Job Description Summary", level=2)
+    document.add_paragraph(report_data["jd_summary"])
+
+    document.add_heading("Match Score", level=2)
+    document.add_paragraph(str(report_data["match_score"]))
+
+    document.add_heading("Matching Skills", level=2)
+    matching = report_data["matching_skills"]
+    
+    if isinstance(matching, list):
+        for skill in matching:
+            document.add_paragraph(skill, style="List Bullet")
+    else:
+        document.add_paragraph(str(matching))
+    
+    document.add_heading("Skill Gap", level=2)
+    missing = report_data["skill_gap"]
+
+    if isinstance(missing, list):
+        for skill in missing:
+            document.add_paragraph(skill, style="List Bullet")
+    else:
+        document.add_paragraph(str(missing))
         
-        
+    document.add_heading("Learning Plan", level=2)
+
+    learning_plan = report_data["learning_plan"]
+
+    if isinstance(learning_plan, dict):
+        for week, task in learning_plan.items():
+            document.add_paragraph(
+                f"{week.replace('_', ' ').title()}: {task}",
+                style="List Bullet"
+            )
+    else:
+        document.add_paragraph(str(learning_plan))
+
+    document.add_heading("Preparation Tips", level=2)
+    document.add_paragraph(report_data["tips"])
+
+    document.save(filepath)
+                
     report = Report(
     user_id=current_user.id,
     analysis_id=analysis.id,
@@ -129,7 +175,7 @@ Give JSON:
             
     return FileResponse(
         path=filepath,
-        media_type="application/json",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=filename
     )
     

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
-from sqlalchemy.sql import func
+from datetime import datetime
 from db.database import Base
 
 class Report(Base):
@@ -12,4 +12,4 @@ class Report(Base):
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime,default=datetime.utcnow)

@@ -42,99 +42,55 @@ def run_analysis(current_user,db):
     
        
     template = """
-You are an ATS and Technical Recruiter evaluating a candidate's resume against a job description.
+You are an ATS and Technical Recruiter comparing a resume against a job description.
 
-============================================================
-STEP 1 — EXTRACT REQUIRED SKILLS FROM THE JD
-============================================================
-- Combine skills from EVERY section of the job description that names a
-  technology, tool, language, framework, database, platform, protocol, or
-  concept — including sections titled "Required Skills", "Preferred
-  Skills", "Nice to Have", "Responsibilities", and "About the Role".
-- Do NOT limit extraction to only the section literally labeled
-  "Required Skills". A skill mentioned in "Preferred Skills" or in a
-  responsibilities paragraph is still something the JD is asking for.
-- Include conceptual/fundamental topics as skills too (e.g. "data
-  structures & algorithms", "dbms", "operating systems", "oop") if the
-  JD names them explicitly.
+RULES:
 
-============================================================
-STEP 2 — EXTRACT CANDIDATE SKILLS FROM THE RESUME
-============================================================
-- Scan the ENTIRE resume text — the declared "Skills" section AND every
-  project description, internship bullet, certification, and academic
-  description.
-- A skill counts as present if it appears explicitly as text ANYWHERE in
-  the resume, not only inside a dedicated skills list. Example: if a
-  project bullet says "Designed and developed backend REST APIs using
-  FastAPI", then both "rest apis" and "fastapi" count as present skills,
-  even though they may not appear in the "Skills:" section.
-- Never infer, guess, summarize, or use external/world knowledge to
-  assume a skill the text does not state.
+1. Internally identify required skills by pulling from EVERY JD section
+   (Required, Preferred, Responsibilities, etc.), including named
+   conceptual topics (e.g. "dbms", "oop"). Treat each named
+   technology/concept as its OWN item — never collapse multiple named
+   items into one broad category (e.g. "CNN", "Transformer",
+   "fine-tuning" stay separate, not merged into "ai/ml"). Don't skip
+   minor-seeming named tools. Do not output this list — use it only to
+   build matching_skills and missing_skills below.
 
-============================================================
-STEP 3 — NORMALIZE
-============================================================
-- Convert all skill names to lowercase.
-- Remove duplicates.
-- Apply ONLY these equivalents (do not invent additional ones):
-  js=javascript
-  react.js=react
-  node.js=node
-  python3=python
-  postgresql=postgres
-  postgres sql=postgres
-  aws=amazon web services
-  gcp=google cloud platform
-  k8s=kubernetes
-  ci cd=ci/cd
-  cicd=ci/cd
-  rest api=rest apis
-  restful api=rest apis
-  restful apis=rest apis
-- Do NOT treat related-but-different technologies as equivalent
-  (e.g. mysql does not satisfy a requirement for postgres; react does
-  not satisfy a requirement for angular).
+2. Internally identify candidate skills by scanning the ENTIRE resume —
+   skills list, projects, internships, certifications. Counts only if
+   stated as text. Do not output this list either.
 
-============================================================
-STEP 4 — COMPARE
-============================================================
-- matching_skills: skills present in BOTH the normalized required_skills
-  list AND the normalized candidate_skills list.
-- missing_skills: skills present in required_skills but NOT found
-  anywhere in the resume.
-- If the JD lists alternatives with "or" (e.g. "Node.js, Python, or
-  Java"), treat the requirement as satisfied if the candidate has ANY
-  one of the listed alternatives — do not list the other alternatives
-  as missing_skills in that case.
+3. CRITICAL — no inference: a skill goes in matching_skills ONLY if you
+   can point to an exact phrase in the resume that states it. Adjacent
+   tools are not evidence for each other — e.g. having "Docker" or
+   "Git" does NOT prove "CI/CD"; CI/CD only counts if the resume says
+   "CI/CD", "continuous integration/deployment", or names a CI/CD tool
+   (Jenkins, GitHub Actions, GitLab CI). Same standard for every skill:
+   don't infer one skill's presence from a different, merely related
+   one. If you can't point to real text proving it, it belongs in
+   missing_skills instead.
 
-============================================================
-STEP 5 — QUALITATIVE STRENGTHS AND WEAKNESSES
-============================================================
-- strengths: 2-3 short sentences describing WHY the matching skills are
-  credible for this role, grounded in specific resume evidence (a named
-  project, internship, or context). Do not just restate skill names as
-  a list.
-- weaknesses: 2-3 short sentences describing the candidate's gap
-  relative to the JD — for example, experience level vs. what the JD
-  expects, absence of an entire category (cloud, databases, testing),
-  or lack of production/scale exposure. weaknesses must NOT be a
-  restatement or subset of missing_skills — they must add qualitative
-  reasoning a hiring manager would care about, not just skill names.
-- Base strengths and weaknesses only on what the resume and JD text
-  actually say. Do not invent claims not supported by the text.
+4. Normalize (lowercase, dedupe). Apply ONLY these equivalents:
+   js=javascript, react.js=react, node.js=node, python3=python,
+   postgresql=postgres, aws=amazon web services,
+   gcp=google cloud platform, k8s=kubernetes, cicd=ci/cd,
+   rest api(s)/restful api(s)=rest apis,
+   llm(s)/large language model(s)=llms,
+   genai/gen ai=generative ai, ml=machine learning, ai=artificial intelligence,
+   rag=retrieval-augmented generation, cv=computer vision
+   Never merge different concepts (mysql ≠ postgres, ml ≠ llms).
 
-============================================================
-OUTPUT
-============================================================
-Do not include a match score — it will be calculated separately from
-the arrays you return, so any score you might compute would be ignored.
+5. JD alternatives ("Node.js, Python, or Java") are satisfied by ANY
+   one match — don't list the rest as missing.
 
-Return ONLY valid JSON. No markdown, no explanation, no extra keys.
+6. strengths/weaknesses: 2-3 sentences each, grounded in specific
+   resume evidence, not a restated skill list. weaknesses must add
+   real reasoning (experience level, missing category, no prod
+   exposure) — never just a copy of missing_skills.
 
+7. No match score (computed separately, ignored if you include one).
+
+Return ONLY valid JSON, no markdown, no extra keys beyond these:
 {{
-  "candidate_skills": [],
-  "required_skills": [],
   "matching_skills": [],
   "missing_skills": [],
   "strengths": [],
@@ -158,10 +114,9 @@ Job Description:
    
     data = parse_llm_json(result)
     
-    required_skills = data.get("required_skills", [])
+    
     matching_skills = data.get("matching_skills", [])
     missing_skills = data.get("missing_skills", [])
-    candidate_skills = data.get("candidate_skills", [])
     strengths = data.get("strengths", [])
     weaknesses = data.get("weaknesses", [])
     
@@ -172,8 +127,8 @@ Job Description:
     data["match_score"]=match_score
     
     analysis=Analysis(user_id=current_user.id,resume_id=resume.id,
-    jd_id=jd.id,matching_skills=matching_skills,missing_skills=missing_skills,required_skills=required_skills,
-                      strengths=strengths,weaknesses=weaknesses,candidate_skills=candidate_skills,match_score=match_score)
+    jd_id=jd.id,matching_skills=matching_skills,missing_skills=missing_skills,
+                      strengths=strengths,weaknesses=weaknesses,match_score=match_score)
     
     
         

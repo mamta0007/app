@@ -18,6 +18,17 @@
   app.js decides which one is visible, and which "route" section
   inside #view-app is visible, by adding/removing CSS classes.
   Nothing here reloads the page — it's all one HTML file.
+
+  NOTE on the forms below: each one now has method="post"
+  action="javascript:void(0)". This is a safety net, not the real
+  submit logic (app.js's submit listeners + e.preventDefault() do the
+  actual work over fetch()). Without it, a <form> with no method/
+  action defaults to a GET request to the current URL, dumping every
+  field — including passwords — into the address bar and server
+  logs the moment app.js hasn't attached its listener yet (e.g. an
+  Enter-key submit that races page load, or a JS error earlier in the
+  file). method="post" + a javascript: no-op action means that even
+  in that race condition, nothing sensitive ever hits the URL or logs.
 -->
 
 <!-- ===================== AUTH VIEW ===================== -->
@@ -35,7 +46,7 @@
         <button class="auth-tab" data-auth-tab="register">Create account</button>
       </div>
 
-      <form id="form-login" class="auth-form is-active" novalidate>
+      <form id="form-login" class="auth-form is-active" method="post" action="javascript:void(0)" novalidate>
         <label class="field">
           <span class="field__label">Email</span>
           <input type="email" name="email" required autocomplete="email" />
@@ -49,7 +60,7 @@
         <button type="button" class="auth-link" id="link-forgot-password">Forgot password?</button>
       </form>
 
-      <form id="form-register" class="auth-form" novalidate>
+      <form id="form-register" class="auth-form" method="post" action="javascript:void(0)" novalidate>
         <label class="field">
           <span class="field__label">Name</span>
           <input type="text" name="name" required autocomplete="name" />
@@ -60,14 +71,18 @@
         </label>
         <label class="field">
           <span class="field__label">Password</span>
-          <input type="password" name="password" required autocomplete="new-password" minlength="8" />
+          <input type="password" name="password" required autocomplete="new-password" minlength="6" />
+        </label>
+        <label class="field">
+          <span class="field__label">Confirm Password</span>
+          <input type="password" name="confirm_password" required autocomplete="new-password" minlength="6" />
         </label>
         <p class="field__error" id="register-error" role="alert"></p>
         <p class="auth-form__success" id="register-success" hidden></p>
         <button type="submit" class="btn btn--primary btn--block">Create account</button>
       </form>
 
-      <form id="form-forgot" class="auth-form" novalidate>
+      <form id="form-forgot" class="auth-form" method="post" action="javascript:void(0)" novalidate>
         <p class="auth-form__hint">Enter your account email — we'll send a reset link.</p>
         <label class="field">
           <span class="field__label">Email</span>
@@ -78,12 +93,16 @@
         <button type="button" class="auth-link" id="link-back-to-login">← Back to sign in</button>
       </form>
 
-      <form id="form-reset" class="auth-form" novalidate>
+      <form id="form-reset" class="auth-form" method="post" action="javascript:void(0)" novalidate>
         <p class="auth-form__hint">Choose a new password for your account.</p>
         <input type="hidden" name="token" id="reset-token-field" />
         <label class="field">
-          <span class="field__label">New password</span>
-          <input type="password" name="new_password" required minlength="8" autocomplete="new-password" />
+          <span class="field__label">New Password</span>
+          <input type="password" name="new_password" required minlength="6" autocomplete="new-password" />
+        </label>
+        <label class="field">
+          <span class="field__label">Confirm Password</span>
+          <input type="password" name="confirm_new_password" required minlength="6" autocomplete="new-password" />
         </label>
         <p class="field__error" id="reset-error" role="alert"></p>
         <button type="submit" class="btn btn--primary btn--block">Reset password</button>
@@ -361,7 +380,7 @@
         <p class="route__eyebrow">Step 06</p>
         <h1 class="route__title">The full report</h1>
         <p class="route__sub">Match score, skills, and where to focus next — all in one place.</p>
-        <button class="btn btn--ghost" id="btn-download-report" hidden>Download report (.json)</button>
+        <button class="btn btn--ghost" id="btn-download-report" hidden>Download report (.docx)</button>
       </header>
 
       <div id="report-empty" class="empty">

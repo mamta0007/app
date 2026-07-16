@@ -49,6 +49,7 @@ const state = {
     all: null,
   },
   report: null,
+  reportBlob: null,      // the fetched .docx file bytes, set by loadReport()
   reportFileName: null, // real backend filename, read from Content-Disposition
   history: null,        // last /history response
 };
@@ -191,9 +192,9 @@ const Api = {
     method: 'POST',
     body: JSON.stringify({ email }),
   }, { auth: false }),
-  resetPassword: (token, newPassword) => apiFetch(
+  resetPassword: (token, password, confirmPassword) => apiFetch(
     `/reset-password?token=${encodeURIComponent(token)}`,
-    { method: 'POST', body: JSON.stringify({ password: newPassword }) },
+    { method: 'POST', body: JSON.stringify({ password, confirm_password: confirmPassword }) },
     { auth: false },
   ),
   logout: () => apiFetch('/logout', {
@@ -347,11 +348,28 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
   errorEl.textContent = '';
   successEl.hidden = true;
   const formData = new FormData(e.target);
-  const payload = {
-    name: formData.get('name'),
-    email: formData.get('email'),
-    password: formData.get('password'),
-  };
+  const name = formData.get('name');
+  const email = formData.get('email');
+  const password = formData.get('password');
+  const confirmPassword = formData.get('confirm_password');
+
+  // Frontend validation — mirrors the backend's rules so the person
+  // gets instant feedback instead of waiting on a round trip. The
+  // backend re-checks all of this regardless, so this is purely UX.
+  if (!name || !email || !password || !confirmPassword) {
+    errorEl.textContent = 'Please fill in all fields.';
+    return;
+  }
+  if (password.length < 6) {
+    errorEl.textContent = 'Password must be at least 6 characters long.';
+    return;
+  }
+  if (password !== confirmPassword) {
+    errorEl.textContent = 'Password and Confirm Password do not match.';
+    return;
+  }
+
+  const payload = { name, email, password, confirm_password: confirmPassword };
   try {
     await Api.register(payload);
     successEl.hidden = false;
@@ -382,6 +400,8 @@ if (logoutBtn) {
       state.interview = { type: null, currentQuestion: null, history: [] };
       state.questions = { all: null };
       state.report = null;
+      state.reportBlob = null;
+      state.reportFileName = null;
       state.history = null;
 
       showAuthView();
@@ -429,8 +449,23 @@ document.getElementById('form-reset').addEventListener('submit', async (e) => {
   const formData = new FormData(e.target);
   const token = formData.get('token');
   const newPassword = formData.get('new_password');
+  const confirmNewPassword = formData.get('confirm_new_password');
+
+  if (!newPassword || !confirmNewPassword) {
+    errorEl.textContent = 'Please fill in both password fields.';
+    return;
+  }
+  if (newPassword.length < 6) {
+    errorEl.textContent = 'Password must be at least 6 characters long.';
+    return;
+  }
+  if (newPassword !== confirmNewPassword) {
+    errorEl.textContent = 'Password and Confirm Password do not match.';
+    return;
+  }
+
   try {
-    await Api.resetPassword(token, newPassword);
+    await Api.resetPassword(token, newPassword, confirmNewPassword);
     toast('Password reset. Sign in with your new password.');
     window.history.replaceState({}, '', window.location.pathname);
     showAuthForm('login');
@@ -864,9 +899,18 @@ document.getElementById('btn-generate-questions').addEventListener('click', asyn
 /* ---------------------------------------------------------
    Report
 
-   Fetches a full summary (resume/JD summaries, score, skill gap,
-   learning plan, tips) and both displays it AND lets the person
-   download it as a .json file to keep.
+   POST /report now returns an actual .docx file (Word document),
+   not JSON — the backend builds the Word doc itself (resume/JD
+   summaries, match score, skills, learning plan, tips as headings/
+   paragraphs) and streams it back as a FileResponse. Because the
+   report content now lives inside Word paragraphs instead of a JSON
+   body, the frontend can no longer read individual fields
+   (resume_summary, match_score, etc.) out of the response — that
+   data simply isn't available as structured data anymore. So this
+   page no longer renders a field-by-field breakdown; it just
+   confirms the report is ready and lets the person download the
+   actual .docx file, the same way the History page already does for
+   past reports.
    --------------------------------------------------------- */
 
 function el(tag, opts = {}) {
@@ -884,23 +928,20 @@ function reportSection(title, bodyNode) {
   return section;
 }
 
-// apiFetch() only returns the parsed JSON body — it discards response
-// headers. But the backend's actual filename (e.g. "report_11_2.json")
-// only exists in the Content-Disposition header of the /report response,
-// not in the JSON body itself (report_data has no "file_name" key). So
-// this parses that header out, same way a browser would for a real
-// download prompt.
+// apiFetch() only returns a parsed JSON body — it can't handle a
+// binary file response, and it discards headers anyway. The real
+// filename (e.g. "report_27_2.docx") only exists in the
+// Content-Disposition header, so this parses it out manually, same
+// as a browser would for a native download prompt.
 function parseFilenameFromContentDisposition(header) {
   if (!header) return null;
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-// Fetches the report the same way downloadReportById() fetches a file —
-// manually, with auth + 401-refresh handling — instead of through
-// apiFetch, specifically so we can read the Content-Disposition header
-// for the real backend filename before apiFetch's JSON-only path
-// throws that information away.
+// Fetches the report as a raw Blob (it's a .docx file, not JSON),
+// with the same manual auth + 401-refresh handling used elsewhere
+// for file downloads (see downloadReportById below).
 async function fetchReportRaw() {
   const headers = new Headers();
   if (Tokens.access) headers.set('Authorization', `Bearer ${Tokens.access}`);
@@ -923,51 +964,47 @@ async function fetchReportRaw() {
     try {
       const body = await response.json();
       if (body.detail) detail = body.detail;
-    } catch (_) { /* no json body */ }
+    } catch (_) { /* response body isn't JSON (it's a file) on success, only on error */ }
     throw new ApiError(detail, response.status);
   }
 
   const filename = parseFilenameFromContentDisposition(response.headers.get('Content-Disposition'));
-  const data = await response.json();
-  return { data, filename };
+  const blob = await response.blob();
+  return { blob, filename };
 }
 
 async function loadReport() {
   try {
-    const { data: report, filename } = await fetchReportRaw();
-    state.report = report;
-    state.reportFileName = filename; // real backend filename, e.g. report_11_2.json
+    const { blob, filename } = await fetchReportRaw();
+    state.reportBlob = blob;
+    state.reportFileName = filename; // real backend filename, e.g. report_27_2.docx
     document.getElementById('report-empty').hidden = true;
+
     const downloadBtn = document.getElementById('btn-download-report');
     downloadBtn.hidden = false;
-    downloadBtn.textContent = filename ? `Download report (${filename})` : 'Download report (.json)';
+    downloadBtn.textContent = filename ? `Download report (${filename})` : 'Download report (.docx)';
+
     const body = document.getElementById('report-body');
     body.hidden = false;
     body.innerHTML = '';
+    body.appendChild(reportSection(
+      'Your report is ready',
+      el('p', { text: 'The full report — resume summary, match score, skills, learning plan, and prep tips — has been generated as a Word document. Use the download button above to save it.' }),
+    ));
 
-    body.appendChild(reportSection('Resume summary', el('p', { text: report.resume_summary || 'Not available.' })));
-    body.appendChild(reportSection('Job description summary', el('p', { text: report.jd_summary || 'Not available.' })));
-    body.appendChild(reportSection('Match score', el('p', { text: `${Math.round(report.match_score || 0)}% match against the job description on file.` })));
-    body.appendChild(reportSection('Matching skills', el('p', { text: (report.matching_skills || []).join(', ') || 'None recorded.' })));
-    body.appendChild(reportSection('Skill gap', el('p', { text: (report.skill_gap || []).join(', ') || 'None recorded.' })));
-
-    // Learning plan
-    const planWrap = el('div');
-    const planEntries = report.learning_plan ? Object.entries(report.learning_plan) : [];
-    if (planEntries.length) {
-      planEntries.forEach(([week, desc]) => {
-        const p = el('p');
-        const strong = el('strong', { text: `${week.replace('_', ' ')}: ` });
-        p.appendChild(strong);
-        p.appendChild(document.createTextNode(desc));
-        planWrap.appendChild(p);
-      });
-    } else {
-      planWrap.appendChild(el('p', { text: 'No learning plan yet.' }));
+    // If an analysis was run earlier this session, we still have that
+    // data in memory (state.analysis) — show a quick preview from it
+    // as a bonus. This is NOT guaranteed to be the same analysis the
+    // .docx was built from if the person ran a newer analysis without
+    // reloading, so it's clearly labeled as a preview, not the report
+    // itself.
+    if (state.analysis) {
+      const preview = el('div');
+      preview.appendChild(el('p', { text: `Match score: ${Math.round(state.analysis.match_score || 0)}%` }));
+      preview.appendChild(el('p', { text: `Matching skills: ${(state.analysis.matching_skills || []).join(', ') || 'None recorded.'}` }));
+      preview.appendChild(el('p', { text: `Skill gap: ${(state.analysis.missing_skills || []).join(', ') || 'None recorded.'}` }));
+      body.appendChild(reportSection('Preview (from your last analysis this session)', preview));
     }
-    body.appendChild(reportSection('Learning plan', planWrap));
-
-    body.appendChild(reportSection('Prep tips', el('p', { text: report.tips || 'No tips yet.' })));
   } catch (err) {
     toast(err.message || 'Could not load report.', true);
     console.error('loadReport failed:', err);
@@ -1009,20 +1046,20 @@ function showReportEmptyState(err) {
   }
 }
 
-// Turns the report we already have in memory into a downloadable
-// .json file — no extra request to the backend needed.
+// Saves the .docx blob we already fetched — no extra request needed,
+// state.reportBlob holds the actual file bytes from loadReport().
 document.getElementById('btn-download-report').addEventListener('click', () => {
-  if (!state.report) return;
-  const blob = new Blob([JSON.stringify(state.report, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+  if (!state.reportBlob) return;
+  const url = URL.createObjectURL(state.reportBlob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = state.reportFileName || 'redline-report.json';
+  a.download = state.reportFileName || 'redline-report.docx';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 });
+
 
 /* ---------------------------------------------------------
    History
@@ -1091,9 +1128,10 @@ function formatHistoryDate(value) {
 
 // Downloads one specific past report (GET /download-report/{analysis_id}?report_id=...).
 // Not routed through apiFetch because apiFetch always tries to parse
-// the response as JSON — here we need the raw file bytes as a Blob so
-// the browser can save it, same trick as btn-download-report but
-// fetched fresh from the server instead of read from `state.report`.
+// the response as JSON — this is a .docx file, so we need the raw
+// bytes as a Blob so the browser can save it (same pattern as
+// fetchReportRaw/loadReport above, just fetched fresh here instead of
+// reused from state).
 async function downloadReportById(analysisId, reportId, filename) {
   const url = `${API_BASE}/download-report/${analysisId}?report_id=${encodeURIComponent(reportId)}`;
   try {
@@ -1126,7 +1164,7 @@ async function downloadReportById(analysisId, reportId, filename) {
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = filename || `report_${reportId}.json`;
+    a.download = filename || `report_${reportId}.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1179,10 +1217,10 @@ function renderHistoryCard(entry) {
   card.appendChild(reportP);
 
   if (reportId) {
-    const label = reportName ? `Download report (${reportName})` : 'Download report (.json)';
+    const label = reportName ? `Download report (${reportName})` : 'Download report (.docx)';
     const downloadBtn = el('button', { className: 'btn btn--ghost', text: label });
     downloadBtn.style.marginTop = '0.6rem';
-    downloadBtn.addEventListener('click', () => downloadReportById(analysisId, reportId, reportName || `report_${reportId}.json`));
+    downloadBtn.addEventListener('click', () => downloadReportById(analysisId, reportId, reportName || `report_${reportId}.docx`));
     card.appendChild(downloadBtn);
   }
 
