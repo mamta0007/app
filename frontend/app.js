@@ -21,6 +21,18 @@
    can "await" something slow (like a network request) without
    freezing the page. "addEventListener('click', ...)" means
    "run this code when the user clicks this button".
+
+   SESSION-SCOPING NOTE (read this before touching Roadmap/Interview/
+   Question bank/Report code): the backend's /generate_road_map,
+   /question, /question%20generation, and /report endpoints all
+   return data tied to the ACCOUNT, not to "what happened in this
+   browser tab." If you upload nothing and immediately click e.g.
+   "Generate roadmap", the backend still happily returns whatever
+   roadmap it last generated for this account — possibly from a
+   totally different resume/JD, days ago. To stop that from being
+   shown as if it were current, every one of those actions below is
+   guarded with `if (!state.analysis) { ...bail out... }` — state.analysis
+   only gets set after Api.runAnalysis() succeeds IN THIS SESSION.
    ========================================================= */
 
 // This is the address of the backend server. Every request in this
@@ -250,6 +262,21 @@ function toast(message, isError = false) {
   el.classList.add('is-visible');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('is-visible'), 3200);
+}
+
+// Shared guard used by Roadmap / Interview / Question bank actions
+// below. Returns true if it's safe to call the backend (an analysis
+// has actually run in this session). If not, it shows a toast
+// pointing the person at the Upload page and returns false, so the
+// caller can bail out before ever hitting the network — this stops
+// the backend's account-level "last generated" data from appearing
+// as if it belonged to a fresh, empty session (see the note at the
+// top of this file).
+function requireAnalysisThisSession(actionLabel) {
+  if (state.analysis) return true;
+  toast(`Run an analysis first before you ${actionLabel}.`, true);
+  goToRoute('upload');
+  return false;
 }
 
 /* ---------------------------------------------------------
@@ -672,6 +699,9 @@ function renderAnalysis(analysis) {
 }
 
 document.getElementById('btn-to-roadmap').addEventListener('click', async () => {
+  // Reached via the Analysis page's own "Build a roadmap" button, so
+  // state.analysis is guaranteed to be set already — no guard needed
+  // here, but buildRoadmapFromGaps() below still double-checks.
   goToRoute('roadmap');
   await buildRoadmapFromGaps();
 });
@@ -681,6 +711,11 @@ document.getElementById('btn-to-roadmap').addEventListener('click', async () => 
 
    Draws the week-by-week learning plan the backend generates
    from your missing skills.
+
+   Guarded by requireAnalysisThisSession() (see note at top of file)
+   so that opening this page cold — without having run an analysis
+   in this session — never triggers a backend call that could return
+   a stale, previously-generated roadmap for the account.
    --------------------------------------------------------- */
 
 // The backend sends learning_plan as an object like
@@ -716,6 +751,7 @@ function renderTimeline(learningPlan) {
 }
 
 async function buildRoadmapFromGaps() {
+  if (!requireAnalysisThisSession('build a roadmap')) return;
   try {
     const result = await Api.generateRoadmap();
     renderTimeline(result.learning_plan);
@@ -725,6 +761,7 @@ async function buildRoadmapFromGaps() {
 }
 
 document.getElementById('btn-generate-roadmap').addEventListener('click', async () => {
+  if (!requireAnalysisThisSession('generate a roadmap')) return;
   const btn = document.getElementById('btn-generate-roadmap');
   btn.disabled = true;
   btn.textContent = 'Generating…';
@@ -747,11 +784,16 @@ document.getElementById('btn-generate-roadmap').addEventListener('click', async 
    type an answer → submit → get a score + feedback + the NEXT
    question, all in the same response. Repeat as many times as
    you like; each answer gets added to the history list below.
+
+   Guarded by requireAnalysisThisSession() so starting an interview
+   cold (no upload/analysis this session) doesn't pull
+   resume/JD-derived questions left over from a previous session.
    --------------------------------------------------------- */
 
 // Starts a fresh interview of the chosen type and shows the
 // first question on screen.
 async function startInterview(type) {
+  if (!requireAnalysisThisSession('start an interview')) return;
   try {
     const question = await Api.startInterview(type);
     state.interview.type = type;
@@ -850,6 +892,9 @@ function renderInterviewHistory() {
    One button generates FOUR separate lists of questions at once
    (technical, scenario, HR, project-based) based on your resume
    and job description — no extra input needed from the user.
+
+   Guarded by requireAnalysisThisSession() for the same reason as
+   Roadmap and Interview above.
    --------------------------------------------------------- */
 
 function renderQuestionBank(data) {
@@ -876,6 +921,7 @@ function renderQuestionBank(data) {
 }
 
 document.getElementById('btn-generate-questions').addEventListener('click', async () => {
+  if (!requireAnalysisThisSession('generate questions')) return;
   const btn = document.getElementById('btn-generate-questions');
   btn.disabled = true;
   btn.textContent = 'Generating…';
@@ -912,17 +958,9 @@ document.getElementById('btn-generate-questions').addEventListener('click', asyn
    actual .docx file, the same way the History page already does for
    past reports.
 
-   IMPORTANT: POST /report on the backend returns whatever report
-   was MOST RECENTLY generated for this account — it isn't scoped to
-   "the analysis that happened in this browser tab." That means if
-   the Report tab is opened before any resume/JD has been uploaded
-   and analyzed in the current session, calling it would silently
-   show an OLD report from a previous session instead of an empty
-   state. To avoid that, the report tab's click handler below only
-   calls the backend if state.analysis already exists (i.e. an
-   analysis has actually run in this session) — otherwise it shows
-   the "no report yet" empty state directly, without asking the
-   backend at all.
+   Guarded the same way as Roadmap/Interview/Question bank — see the
+   note at the top of this file and the report-tab click handler
+   near the bottom.
    --------------------------------------------------------- */
 
 function el(tag, opts = {}) {
@@ -1083,6 +1121,12 @@ document.getElementById('btn-download-report').addEventListener('click', () => {
    One card per analysis, showing which resume was checked against
    which job description, whether a report was generated for it,
    and when it happened.
+
+   Unlike Roadmap/Interview/Question bank/Report, History is
+   intentionally NOT guarded by requireAnalysisThisSession() — its
+   entire purpose is to show past account activity across sessions,
+   so account-level (not session-level) data is exactly what should
+   appear here.
    --------------------------------------------------------- */
 
 async function loadHistory() {
@@ -1264,6 +1308,12 @@ document.querySelector('[data-route="history"]')?.addEventListener('click', load
 
    A quick read-only snapshot: profile info, plus a status card
    for each feature (uploaded? analyzed? interviewed? planned?).
+
+   Intentionally NOT guarded by requireAnalysisThisSession() — like
+   History, the Dashboard's whole job is to summarize the account's
+   overall state (has a resume ever been uploaded, has an analysis
+   ever been run, etc), independent of what happened in this
+   particular browser session.
    --------------------------------------------------------- */
 
 async function loadDashboard() {
