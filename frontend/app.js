@@ -911,6 +911,18 @@ document.getElementById('btn-generate-questions').addEventListener('click', asyn
    confirms the report is ready and lets the person download the
    actual .docx file, the same way the History page already does for
    past reports.
+
+   IMPORTANT: POST /report on the backend returns whatever report
+   was MOST RECENTLY generated for this account — it isn't scoped to
+   "the analysis that happened in this browser tab." That means if
+   the Report tab is opened before any resume/JD has been uploaded
+   and analyzed in the current session, calling it would silently
+   show an OLD report from a previous session instead of an empty
+   state. To avoid that, the report tab's click handler below only
+   calls the backend if state.analysis already exists (i.e. an
+   analysis has actually run in this session) — otherwise it shows
+   the "no report yet" empty state directly, without asking the
+   backend at all.
    --------------------------------------------------------- */
 
 function el(tag, opts = {}) {
@@ -1227,7 +1239,23 @@ function renderHistoryCard(entry) {
   return card;
 }
 
-document.querySelector('[data-route="report"]').addEventListener('click', loadReport);
+// Report tab click: only ask the backend for a report if this
+// session has actually run an analysis (state.analysis is set).
+// Otherwise POST /report would return whatever report this account
+// generated last time — possibly from days ago — and show it as if
+// it were current, even though the person hasn't uploaded or
+// analyzed anything yet in this session.
+document.querySelector('[data-route="report"]').addEventListener('click', () => {
+  if (!state.analysis) {
+    showReportEmptyState({
+      status: 404,
+      message: 'No analysis yet. Upload a resume and job description, then run the analysis.',
+    });
+    return;
+  }
+  loadReport();
+});
+
 document.querySelector('[data-route="dashboard"]').addEventListener('click', loadDashboard);
 document.querySelector('[data-route="history"]')?.addEventListener('click', loadHistory);
 
