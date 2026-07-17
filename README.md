@@ -1,92 +1,74 @@
-# AI Interview Preparation Assistant (AIPA)
+# AI Resume Analyzer
 
-## Overview
-
-AI Interview Preparation Assistant (AIPA) is a web application that helps job seekers prepare for interviews by analyzing their resume against a job description (JD). It provides skill gap analysis, interview questions, a personalized learning roadmap, and downloadable reports.
-
-The application is built using **FastAPI**, **PostgreSQL**, **HTML/CSS/JavaScript**, and **Large Language Models (LLMs)**.
+## 📌 Project Overview
+AI Resume Analyzer is a web application that analyzes a candidate's resume against a Job Description (JD). It provides ATS score, matching skills, missing skills, and detailed analysis.
 
 ---
 
-## Features
+## 🚀 Features
 
-* User Registration and Login
-* JWT Authentication (Access & Refresh Tokens)
-* Email Account Activation
-* Forgot Password & Reset Password
-* Resume Upload
-* Job Description (JD) Upload
-* AI-based Resume vs JD Analysis
-* Skill Gap Identification
-* Personalized Learning Roadmap
-* AI-generated Interview Questions
-* Dashboard
-* Download Analysis Report
+- User Authentication (JWT)
+- Resume Upload (PDF)
+- Job Description Upload
+- ATS Resume Analysis
+- Skill Matching
+- Match Score
+- History
+- Docker Support
 
 ---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 ### Backend
-
-* FastAPI
-* SQLAlchemy
-* PostgreSQL
-* JWT Authentication
-* Passlib (Password Hashing)
-* Python
+- FastAPI
+- SQLAlchemy
+- PostgreSQL
+- JWT Authentication
+- Pydantic
 
 ### Frontend
-
-* HTML
-* CSS
-* JavaScript
+- HTML
+- CSS
+- JavaScript
 
 ### AI
+- LLM
+- Prompt Engineering
 
-* LangChain
-* LLM Integration
-* Resume & JD Analysis
-
----
-
-## Project Structure
-
-```text
-app/
-│
-├── models/
-├── routers/
-├── services/
-├── schemas/
-├── utils/
-│
-├── main.py
-├── serve.py
-├── index.html
-├── app.js
-├── style.css
-└── requirements.txt
-```
+### DevOps
+- Docker
+- Docker Compose
 
 ---
 
-## Installation
+## 📂 Project Structure
 
-### 1. Clone the repository
+project/
+│
+├── backend/
+├── frontend/
+├── docker-compose.yml
+└── README.md
+
+---
+
+## ⚙️ Installation
+
+### Clone Repository
 
 ```bash
-git clone https://github.com/mamta0007/app.git
-cd app
+git clone <repository-url>
+cd project
 ```
 
-### 2. Create a virtual environment
+### Create Virtual Environment
 
 ```bash
 python -m venv venv
 ```
 
-### 3. Activate the virtual environment
+Activate:
 
 Windows
 
@@ -94,143 +76,64 @@ Windows
 venv\Scripts\activate
 ```
 
-Linux/macOS
+Linux/Mac
 
 ```bash
 source venv/bin/activate
 ```
 
-### 4. Install dependencies
+Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 5. Configure environment variables
+---
 
-Create a `.env` file in the project root and add the required configuration, for example:
+## 🐳 Run with Docker
 
-```env
-DATABASE_URL=your_database_url
-SECRET_KEY=your_secret_key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+Build and start containers
 
-SMTP_EMAIL=your_email
-SMTP_PASSWORD=your_password
+```bash
+docker compose up --build -d
+```
 
-BASE_URL=http://YOUR_LOCAL_IP
+Stop containers
+
+```bash
+docker compose down
 ```
 
 ---
 
-## Running the Backend
+## ▶️ Run Backend
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Backend:
-
-```
-http://localhost:8000
-```
-
-Swagger Documentation:
-
-```
-http://localhost:8000/docs
+uvicorn main:app --reload
 ```
 
 ---
 
-## Running the Frontend
+## 🌐 Application URLs
 
-```bash
-python serve.py
-```
-
-Frontend:
+Frontend
 
 ```
 http://localhost:5500
 ```
 
----
-
-## API Modules
-
-* Authentication
-
-  * Register
-  * Login
-  * Refresh Token
-  * Logout
-
-* Account Management
-
-  * Email Activation
-  * Forgot Password
-  * Reset Password
-
-* Resume
-
-  * Upload Resume
-
-* Job Description
-
-  * Upload JD
-
-* AI Services
-
-  * Resume vs JD Analysis
-  * Skill Gap Analysis
-  * Interview Question Generation
-  * Learning Roadmap
-
-* Reports
-
-  * Download Analysis Report
-
----
-
-## Authentication Flow
+Backend
 
 ```
-Register
-    │
-    ▼
-Activation Email
-    │
-    ▼
-Activate Account
-    │
-    ▼
-Login
-    │
-    ▼
-Access Token + Refresh Token
-    │
-    ▼
-Protected APIs
+http://localhost:8000
 ```
 
----
+Swagger Docs
 
-## Future Improvements
+```
+http://localhost:8000/docs
+```
 
-* Interview Chatbot
-* AI Resume Builder
-* ATS Resume Scoring
-* Company-wise Interview Preparation
-* Admin Dashboard
-* Interview Progress Tracking
-* Deployment on Cloud
+## 👩‍💻 Author
 
----
-
-## Author
-
-**Mamta Choudhary**
-
-GitHub: https://github.com/mamta0007
+Mamta Choudhary
